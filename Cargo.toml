@@ -1,5 +1,5 @@
 [package]
-name = "just-image-rs"
+name = "just-image-desu"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,14 +7,18 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.65"
-axum = "0.5.16"
+axum = { version = "0.5.16", features = ["multipart"] }
+axum-extra = { version = "0.3.7", features = ["spa"] }
 derive_more = "0.99.17"
 env_logger = "0.9.1"
+futures = "0.3.24"
 log = "0.4.17"
 parking_lot = "0.12.1"
 serde = { version = "1.0.145", features = ["derive"] }
 serde_derive = "1.0.145"
 tokio = { version = "1.21.2", features = ["full"] }
+tokio-util = { version = "0.7.4", features = ["io"] }
+tower-http = { version = "0.3.4", features = ["fs", "trace"] }
 tracing = "0.1.37"
-tracing-subscriber = "0.3.16"
+tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
 
