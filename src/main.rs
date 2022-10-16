@@ -7,7 +7,7 @@ use axum::{
 };
 use axum_extra::routing::SpaRouter;
 use futures::{Stream, TryStreamExt};
-use std::{collections::VecDeque, thread};
+use std::{collections::VecDeque, thread, time::Duration};
 use std::{io, net::SocketAddr, sync::Arc};
 use tokio::{
     fs::{remove_file, write, File, OpenOptions},
@@ -231,6 +231,7 @@ async fn main() -> Result<(), AppError> {
             let mut queue = queue.lock().await;
 
             if queue.is_empty() {
+                thread::sleep(Duration::from_micros(10_000));
                 task::yield_now().await;
                 continue;
             }
