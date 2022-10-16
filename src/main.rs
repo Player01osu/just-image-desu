@@ -222,7 +222,7 @@ async fn main() -> Result<(), AppError> {
         )
         .layer(TraceLayer::new_for_http());
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
 
     use tokio::task;
     let queue = Arc::clone(&media_queue);
