@@ -11,7 +11,7 @@ use std::{collections::VecDeque, thread};
 use std::{io, net::SocketAddr, sync::Arc};
 use tokio::{
     fs::{remove_file, write, File, OpenOptions},
-    io::{AsyncReadExt, AsyncWriteExt, BufWriter},
+    io::{AsyncReadExt, AsyncWriteExt, BufReader, BufWriter},
     join,
     sync::{Mutex, MutexGuard},
 };
@@ -24,6 +24,18 @@ use tower_http::{
     services::{ServeDir, ServeFile},
     trace::TraceLayer,
 };
+
+const HTML_HEAD: &str = r#"<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title></title>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link href="css/style.css" rel="stylesheet">
+	</head>
+	<body>
+		<div style="display: flex; flex-direction: column; max-width: 30vw";>
+"#;
 
 async fn create_user(
     // this argument tells axum to parse the request body
@@ -58,7 +70,15 @@ async fn handle_error(_err: io::Error) -> impl IntoResponse {
     (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong...")
 }
 
-async fn generate_html(buffer: UploadQueue) -> Result<impl IntoResponse, AppError> {
+async fn generate_html(mut buffer: UploadQueue) -> Result<impl IntoResponse, AppError> {
+    let mut buf_write = BufWriter::new(HTML_HEAD.as_bytes().to_vec());
+
+    let b = buf_write.get_mut();
+    b.push(b'\t');
+    b.push(b'\t');
+    b.push(b'\t');
+    b.append(&mut buffer.buf);
+
     let mut f = OpenOptions::new()
         .write(true)
         .read(true)
@@ -66,7 +86,6 @@ async fn generate_html(buffer: UploadQueue) -> Result<impl IntoResponse, AppErro
         .create(true)
         .open("./assets/static/bruh.html")
         .await?;
-    f.sync_all().await?;
 
     // Create new file to 'buffer'
     // Wait for unspecified amount of time
@@ -74,7 +93,18 @@ async fn generate_html(buffer: UploadQueue) -> Result<impl IntoResponse, AppErro
     let mut buf = Vec::new();
     f.read_to_end(&mut buf).await?;
 
+    let mut lines = buf.split_inclusive(|c| *c == b'\n').enumerate();
+
+    let mut end_buf = vec![];
+    while let Some((idx, line)) = lines.next() {
+        if idx > 9 {
+            end_buf.append(&mut line.to_vec());
+        }
+    }
     remove_file("./assets/static/bruh.html").await?;
+    b.push(b'\n');
+    b.append(&mut end_buf);
+
     let mut f = OpenOptions::new()
         .write(true)
         .read(true)
@@ -83,18 +113,7 @@ async fn generate_html(buffer: UploadQueue) -> Result<impl IntoResponse, AppErro
         .open("./assets/static/bruh.html")
         .await?;
     f.sync_all().await?;
-    dbg!(buf.len());
-
-    buf.truncate(buf.len() - 21);
-    //let mut nuts = b"\n<img src=\"nuts.jpg\" loading=\"lazy\">\n</div></body></html>".to_vec();
-
-    let mut img = buffer.buf;
-    let mut end = b"\n</div></body></html>".to_vec();
-    buf.append(&mut img);
-    buf.append(&mut end);
-
-    f.write(&buf).await?;
-    f.sync_all().await?;
+    f.write_all(b).await?;
 
     Ok(StatusCode::CREATED)
 }
@@ -204,19 +223,6 @@ async fn main() -> Result<(), AppError> {
         .layer(TraceLayer::new_for_http());
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
-
-    async fn queue_check(queue: Arc<Mutex<VecDeque<UploadQueue>>>) -> Option<impl IntoResponse> {
-        loop {
-            let mut queue = queue.lock().await;
-            dbg!(&queue);
-
-            if queue.is_empty() {
-                continue;
-            }
-
-            break Some(generate_html(queue.pop_back().unwrap()).await);
-        }
-    }
 
     use tokio::task;
     let queue = Arc::clone(&media_queue);
